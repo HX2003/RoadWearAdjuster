@@ -79,7 +79,7 @@ namespace RoadWearAdjuster
             Mod.log.Info("settings updated");
             // Manually replace outdated textures when settings are updated
             ReplaceRoadWearSystem system = World.DefaultGameObjectInjectionWorld?.GetExistingSystemManaged<ReplaceRoadWearSystem>();
-            system?.UpdateStoredTextures();
+            system?.GenerateTextures();
         }
     }
 

@@ -2,7 +2,12 @@ using Game;
 using Game.Objects;
 using System.IO;
 using UnityEngine;
+using Colossal.AssetPipeline.Importers;
+using static Colossal.AssetPipeline.Importers.DefaultTextureImporter;
+
 using static RoadWearAdjuster.Setting;
+using Unity.Collections;
+using System.IO.Ports;
 
 namespace RoadWearAdjuster.Systems
 {
@@ -19,18 +24,16 @@ namespace RoadWearAdjuster.Systems
         bool hasReplacedCarLaneRoadWearTexture = false;
         bool hasReplacedGravelLaneRoadWearTexture = false;
 
-        //Texture2D newTexture = new Texture2D(2, 2);
-
         protected override void OnCreate()
         {
             base.OnCreate();
-            roadWearColourTexture = new Texture2D(1024, 1024);
-            roadWearNormalTexture = new Texture2D(1024, 1024, TextureFormat.ARGB32, true, true); // ARGB32, (RGBA32 does not work!) linear color space
         }
 
-        public void UpdateStoredTextures()
+        public void GenerateTextures()
         {
-            Mod.log.Info("generating and updating stored textures");
+            DefaultTextureImporter defaultTextureImporter = ImporterCache.GetImporter(".png") as DefaultTextureImporter;
+
+            Mod.log.Info("generating stored textures");
             string fileName = "";
 
             if (Mod.MySetting.TextureVariant == TextureVariantEnum.Reflavoured)
@@ -42,42 +45,73 @@ namespace RoadWearAdjuster.Systems
                 fileName = "vanilla";
             }
 
-            string colourFilePath = Path.Combine(Mod.myModFolder, "textures", fileName + "_colour.png");
-            byte[] colourData = File.ReadAllBytes(colourFilePath);
-            roadWearColourTexture.LoadImage(colourData);
+            if (roadWearColourTexture != null)
+            {
+                UnityEngine.Object.Destroy(roadWearColourTexture);
+                roadWearColourTexture = null;
+            }
 
-            UnityEngine.Color[] data = roadWearColourTexture.GetPixels(0);
-            for (int i = 0; i < data.Length; ++i)
+            if (roadWearNormalTexture != null)
+            {
+                UnityEngine.Object.Destroy(roadWearNormalTexture);
+                roadWearNormalTexture = null;
+            }
+
+            // ----- Load colour texture -----
+            string colourFilePath = Path.Combine(Mod.myModFolder, "textures", fileName + "_colour.png");
+            
+            // I am using the game's assetpipeline importer to load the colour texture from the png file
+            // However, to be able to modify the texture, I have to copy it (uncompressed) to a regular Unity Texture2D
+            ImportSettings importSettings = ImportSettings.GetDefault();
+            importSettings.compressBC = false;
+            importSettings.computeMips = false; 
+
+            TextureImporter.Texture temp = defaultTextureImporter.Import(importSettings, colourFilePath);
+
+            roadWearColourTexture = new Texture2D(temp.width, temp.height);
+            roadWearColourTexture.name = "CarLane_BaseColor_custom";
+            NativeArray<Color32> rawPixels = (temp.rawMips[0]).Reinterpret<Color32>(1);
+            Color32[] modifiedPixels = new Color32[rawPixels.Length];
+            for (int i = 0; i < modifiedPixels.Length; ++i)
             {
                 float textureBrightness = Mod.MySetting.TextureBrightness;
-                data[i].r = data[i].r * textureBrightness;
-                data[i].g = data[i].g * textureBrightness;
-                data[i].b = data[i].b * textureBrightness;
-                data[i].a = data[i].a * Mod.MySetting.TextureOpacity;
+                Color32 c = rawPixels[i];
+                c.r = (byte)(c.r * textureBrightness);
+                c.g = (byte)(c.g * textureBrightness);
+                c.b = (byte)(c.b * textureBrightness);
+                c.a = (byte)(c.a * Mod.MySetting.TextureOpacity);
+                modifiedPixels[i] = c;
             }
-            roadWearColourTexture.SetPixels(data);
-            roadWearColourTexture.Apply(true);
+            roadWearColourTexture.SetPixels32(modifiedPixels);
+            roadWearColourTexture.Apply(true); 
+            temp.Dispose();
 
+            // ----- Load normal texture -----
             string normalFilePath = Path.Combine(Mod.myModFolder, "textures", fileName + "_normal.png");
-            byte[] normalData = File.ReadAllBytes(normalFilePath);
 
-            Texture2D tempNormalTexture = new Texture2D(2, 2);
-            tempNormalTexture.LoadImage(normalData); // load image only can output srgb colour space, we need to convert to linear
+            ImportSettings importSettings2 = ImportSettings.GetDefault();
+            importSettings2.normalMap = true;
+            importSettings2.alphaIsTransparency = false;
 
-            Graphics.CopyTexture(tempNormalTexture, roadWearNormalTexture);
-            roadWearNormalTexture.Apply();
-
-            UnityEngine.Object.Destroy(tempNormalTexture);
+            TextureImporter.Texture temp2 = defaultTextureImporter.Import(importSettings2, normalFilePath);
+            roadWearNormalTexture = (Texture2D)(temp2.ToUnityTexture());
+            roadWearNormalTexture.name = "CarLane_Normal_custom";
+            temp2.Dispose();
 
             hasGeneratedTextures = true;
 
+            carLaneMaterial?.SetTexture("_BaseColorMap", roadWearColourTexture);
+            carLaneMaterial?.SetTexture("_NormalMap", roadWearNormalTexture);
             carLaneMaterial?.SetFloat("_Smoothness", Mod.MySetting.TextureSmoothness);
+
+            gravelLaneMaterial?.SetTexture("_BaseColorMap", roadWearColourTexture);
+            gravelLaneMaterial?.SetTexture("_NormalMap", roadWearNormalTexture);
             gravelLaneMaterial?.SetFloat("_Smoothness", Mod.MySetting.TextureSmoothness);
         }
 
-        private void ReplaceTextures()
+        public void ReplaceTextures()
         {
-            //Mod.log.Info("replacing textures"); 
+            // Mod.log.Info("attemping to replace textures"); 
             // Note the shader which draws the road wear is called: BH/Decals/CurvedDecalDeteriorationShader
             // The materials which uses this shader are
             // Batch(GravelLane_a79b1a5d13f7fd94ab43236eb7ed9683)
@@ -132,8 +166,8 @@ namespace RoadWearAdjuster.Systems
                             hasReplacedGravelLaneRoadWearTexture = true;
                         }
                     }
-                } 
-                
+                }
+
                 /*else if (texture != null && texture.name.StartsWith("BusLane_BaseColor"))
                 {
                     Mod.log.Info("Found bus material name: " + material.name);
@@ -147,9 +181,9 @@ namespace RoadWearAdjuster.Systems
         {
             if (!hasGeneratedTextures)
             {
-                UpdateStoredTextures();
+                GenerateTextures();
             }
-            if (!hasReplacedCarLaneRoadWearTexture || !hasReplacedGravelLaneRoadWearTexture) 
+            if (!hasReplacedCarLaneRoadWearTexture || !hasReplacedGravelLaneRoadWearTexture)
             {
                 ReplaceTextures();
             }
