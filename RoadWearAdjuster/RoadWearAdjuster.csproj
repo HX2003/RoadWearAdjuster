@@ -2,7 +2,7 @@
 
 	<PropertyGroup>
 		<OutputType>Library</OutputType>
-		<TargetFramework>net472</TargetFramework>
+		<TargetFramework>net48</TargetFramework>
 		<Configurations>Debug;Release</Configurations>
 		
 		<!--The file where mod information which is required for publishing mod on PDX mods are stored-->
@@ -79,31 +79,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <None Remove="C:\Users\han\AppData\LocalLow\Colossal Order\Cities Skylines II\.cache\Modding\Mod.props" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <None Remove="C:\Users\han\AppData\LocalLow\Colossal Order\Cities Skylines II\.cache\Modding\Mod.props" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <None Remove="C:\Users\han\AppData\LocalLow\Colossal Order\Cities Skylines II\.cache\Modding\Mod.props" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <None Remove="C:\Users\han\AppData\LocalLow\Colossal Order\Cities Skylines II\.cache\Modding\Mod.props" />
-	</ItemGroup>
-
-	<ItemGroup>
 		<None Include="$(ModPropsFile)" Link="Properties\Mod.props" />
 		<None Include="$(ModTargetsFile)" Link="Properties\Mod.targets" />
 	</ItemGroup>
-
-	<ItemGroup>
-	  <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net472" Version="1.0.3">
-	    <PrivateAssets>all</PrivateAssets>
-	    <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-	  </PackageReference>
-	</ItemGroup>
-
 </Project>

@@ -7,7 +7,6 @@ using static Colossal.AssetPipeline.Importers.DefaultTextureImporter;
 
 using static RoadWearAdjuster.Setting;
 using Unity.Collections;
-using System.IO.Ports;
 
 namespace RoadWearAdjuster.Systems
 {
