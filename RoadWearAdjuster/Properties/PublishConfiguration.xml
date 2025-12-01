@@ -11,7 +11,8 @@
 # Road Wear Adjuster
 Adjust the texture, brightness, opacity, smoothness of the road wear. This mod is a purely cosmetic mod, it **does not** affect gameplay. As such, it should be safe to your saves.
 
-If you're aiming for dark road wear, decrease the brightness and increase the opacity. I also recommend decreasing smoothness, as reflected light will cause the road wear to appear lighter.
+[Update]: The game has been updated so dark road wear is now the default without the mod. Still, if you would like change the road wear, perhaps to something lighter, you can use this mod.
+(Previously: If you're aiming for dark road wear, decrease the brightness and increase the opacity. I also recommend decreasing smoothness, as reflected light will cause the road wear to appear lighter)
 	</LongDescription>
 	<!--Thumbnail-->
 	<Thumbnail Value="Properties/Thumbnail.png" />
@@ -22,9 +23,9 @@ If you're aiming for dark road wear, decrease the brightness and increase the op
 	<!--Link to the forum post where the mod can be discussed-->
 	<ForumLink Value="" />
 	<!--Version of the mod-->
-	<ModVersion Value="1.0.4" />
+	<ModVersion Value="1.0.5" />
 	<!--Recommended version of the base game to use the mod-->
-	<GameVersion Value="1.3.*" />
+	<GameVersion Value="1.4.*" />
 	<!--Dependency for the mod, can be set multiple times-->
 	<Dependency Id="" />
 	<!--Change log for new version. Single line or multi line. Supports minimal markdown subset-->

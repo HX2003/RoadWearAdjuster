@@ -101,7 +101,7 @@ namespace RoadWearAdjuster
                 { m_Setting.GetOptionGroupLocaleID(Setting.kConfigureGroup), "Configure" },
 
                 { m_Setting.GetOptionLabelLocaleID(nameof(Setting.PresetDefault)), "Reset to default" },
-                { m_Setting.GetOptionDescLocaleID(nameof(Setting.PresetDefault)),  "Applies this preset to your configuration" },
+                { m_Setting.GetOptionDescLocaleID(nameof(Setting.PresetDefault)),  "Applies this mod's default preset to your configuration" },
                 { m_Setting.GetOptionWarningLocaleID(nameof(Setting.PresetDefault)), "Are you sure you want to apply this preset? Your existing configuration will be overriden." },
 
                 { m_Setting.GetOptionLabelLocaleID(nameof(Setting.TextureVariant)), "Texture Variant" },
