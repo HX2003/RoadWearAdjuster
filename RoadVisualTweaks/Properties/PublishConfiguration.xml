@@ -1,0 +1,40 @@
+﻿<Publish>
+	<!--Id must be set in order to update existed mod. it is not required for publishing mod for the first time-->
+	<ModId Value="96718" />
+	<!--Name of the mod to display to players-->
+	<DisplayName Value="Road Visual Tweaks (formerly Road Wear Adjuster)" />
+	<!--Short description of the mod-->
+	<ShortDescription Value="Adjust the texture, brightness, opacity, smoothness of the road wear" />
+	<!--Long description of the mod. Single line or multi line. Supports minimal markdown subset-->
+	<!--LongDescription Value="Adjust the visual looks and texture of the road wear" /-->
+	<LongDescription>
+# Road Visual Tweaks
+Adjust the appearance of road wear, bus and bicycle lanes. Each type can be individually toggled on or off.
+
+[Note]: You can configure the base texture to use the original ones, or my custom reflavoured ones. The reflavoured textures are stored in C:\Users\%USERNAME%\AppData\LocalLow\Colossal Order\Cities Skylines II\.cache\Mods\mods_subscribed\96718_6\textures, (this number 96718_6 may change?) but I've only customized the Road Wear texture.
+
+[Note]: This mod is a purely cosmetic mod, it does not affect gameplay. As such, it should be safe to your saves.
+
+[Note]: The game has been updated so dark road wear is now the default without the mod. Still, if you would like change the road wear, perhaps to something lighter, you can use this mod.
+	</LongDescription>
+	<!--Thumbnail-->
+	<Thumbnail Value="Properties/Thumbnail.jpg" />
+	<!--Screenshot, can be set multiple times-->
+	<Screenshot Value="Properties/ImageCompared.png" />
+	<!--Tag, can be set multiple times-->
+	<Tag Value="" />
+	<!--Link to the forum post where the mod can be discussed-->
+	<ForumLink Value="" />
+	<!--Version of the mod-->
+	<ModVersion Value="2.0.0" />
+	<!--Recommended version of the base game to use the mod-->
+	<GameVersion Value="1.4.*" />
+	<!--Dependency for the mod, can be set multiple times-->
+	<Dependency Id="" />
+	<!--Change log for new version. Single line or multi line. Supports minimal markdown subset-->
+	<ChangeLog Value="Support for bus and bicycle lanes" />
+	<!--ChangeLog>
+	</ChangeLog-->
+	<!--External link. supported types are discord, github, youtube, twitch, x, paypal, patreon, buymeacoffee, kofi, crowdin, gitlab-->
+	<ExternalLink Type="github" Url="https://github.com/HX2003/RoadVisualTweaks" />
+</Publish>
