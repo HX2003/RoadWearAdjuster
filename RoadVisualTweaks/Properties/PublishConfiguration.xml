@@ -11,7 +11,7 @@
 # Road Visual Tweaks
 Adjust the appearance of road wear, bus and bicycle lanes. Each type can be individually toggled on or off.
 
-[Note]: You can configure the base texture to use the original ones, or my custom reflavoured ones. The reflavoured textures are stored in C:\Users\%USERNAME%\AppData\LocalLow\Colossal Order\Cities Skylines II\.cache\Mods\mods_subscribed\96718_6\textures, (this number 96718_6 may change?) but I've only customized the Road Wear texture.
+[Note]: You can configure the base texture to use the original ones, or my custom reflavoured ones. Only the reflavoured road wear texture has been implemented, the reflavoured textures can be found in C:\Users\%USERNAME%\AppData\LocalLow\Colossal Order\Cities Skylines II\.cache\Mods\mods_subscribed\96718_6\textures, (this number 96718_6 may change) but note that if you edit it, it will probably be gone if the mod/game gets updated.
 
 [Note]: This mod is a purely cosmetic mod, it does not affect gameplay. As such, it should be safe to your saves.
 
@@ -20,19 +20,20 @@ Adjust the appearance of road wear, bus and bicycle lanes. Each type can be indi
 	<!--Thumbnail-->
 	<Thumbnail Value="Properties/Thumbnail.jpg" />
 	<!--Screenshot, can be set multiple times-->
+	<Screenshot Value="Properties/Thumbnail.jpg" />
 	<Screenshot Value="Properties/ImageCompared.png" />
 	<!--Tag, can be set multiple times-->
 	<Tag Value="" />
 	<!--Link to the forum post where the mod can be discussed-->
 	<ForumLink Value="" />
 	<!--Version of the mod-->
-	<ModVersion Value="2.0.0" />
+	<ModVersion Value="2.0.1" />
 	<!--Recommended version of the base game to use the mod-->
-	<GameVersion Value="1.4.*" />
+	<GameVersion Value="1.5.*" />
 	<!--Dependency for the mod, can be set multiple times-->
 	<Dependency Id="" />
 	<!--Change log for new version. Single line or multi line. Supports minimal markdown subset-->
-	<ChangeLog Value="Support for bus and bicycle lanes" />
+	<ChangeLog Value="Compatibility update, more performant when changing settings" />
 	<!--ChangeLog>
 	</ChangeLog-->
 	<!--External link. supported types are discord, github, youtube, twitch, x, paypal, patreon, buymeacoffee, kofi, crowdin, gitlab-->

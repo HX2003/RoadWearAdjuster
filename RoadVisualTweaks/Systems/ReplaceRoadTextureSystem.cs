@@ -12,24 +12,15 @@ using Game.Rendering;
 using Game.Tools;
 using Game.UI;
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Drawing.Drawing2D;
+using System.Diagnostics;
 using System.IO;
-using System.Linq;
-using System.Linq.Expressions;
-using System.Reflection;
-using System.Xml;
-using System.Xml.Linq;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
-using static Colossal.AssetPipeline.Constants;
-using static Colossal.AssetPipeline.Diagnostic.Report;
 using static Colossal.AssetPipeline.Importers.DefaultTextureImporter;
 using static Colossal.AssetPipeline.Importers.TextureImporter;
 using static Colossal.IO.AssetDatabase.MaterialLibrary;
@@ -38,7 +29,6 @@ using static Game.Tools.ValidationSystem;
 using static Game.UI.NameSystem;
 using static RoadVisualTweaks.Setting;
 using static RoadVisualTweaks.Systems.ReplaceRoadTextureSystem;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace RoadVisualTweaks.Systems
 {
@@ -95,16 +85,13 @@ namespace RoadVisualTweaks.Systems
         public const string GravelLane = "GravelLane";
         public const string BusLane = "BusLane";
         public const string BikeLane150cm = "BikeLane150cm";
-        public const string BikePathPavementSide0cm = "BikePathPavementSide0cm";
+        public const string BikePathPavementSide0cm = "BikePathPavementSide0cm"; // BikePathPavement300cm
         public const string BikePathPavementMiddle300cm = "BikePathPavementMiddle300cm";
         public const string BikePathPavement800cm = "BikePathPavement800cm";
     }
 
     public partial class ReplaceRoadTextureSystem : GameSystemBase
     {
-        private List<string> materialNames = new List<string> {
-             
-        };
 
         public class ConfigurableMaterial
         {
@@ -112,13 +99,22 @@ namespace RoadVisualTweaks.Systems
             public UnityEngine.Texture2D vanillaColorTexture { get; set; } // reference to the vanilla texture 
             public UnityEngine.Texture2D vanillaNormalTexture { get; set; } // reference to the vanilla texture 
             public float vanillaSmoothness { get; set; }
+
+            // The color texture is cached temporarily since the user might apply color adjustments to it
+
+            public Stopwatch cachedTextureStopWatch; // stopwatch for the cached textures
+            public UnityEngine.Texture2D cachedSourceColorTexture { get; set; } // catched texture which only remain alive for a short duration (when user is tweaking the sliders)
+
+            // If the adjusted color texture is used, it is finally stored here
             public UnityEngine.Texture2D generatedColorTexture { get; set; }
+
+            // If the custom normal texture is used, it is finally stored here
             public UnityEngine.Texture2D generatedNormalTexture { get; set; }
 
             public bool usesWorldSpace = false; // true for BikePathPavementMiddle300cm, i'm not sure why this material doesn't use the BaseColor
 
             public bool? prevOverrideEnable = null;
-            public TextureVariantEnum? prevtextureVariant = null;
+            public TextureVariantEnum? prevTextureVariant = null;
             public float? prevTextureBrightness = null;
             public float? prevTextureHue = null;
             public float? prevTextureOpacity = null;
@@ -126,6 +122,11 @@ namespace RoadVisualTweaks.Systems
 
             public bool obtainedMaterial = false; // when this is true, it means we have obtained the target material
             public bool obtainedMaterialReplaced = false; // when this is true, it means we have obtained the target material and generated the replacement textures for them
+        
+            public ConfigurableMaterial()
+            {
+                cachedTextureStopWatch = new Stopwatch();
+            }
         }
 
         private Dictionary<string, ConfigurableMaterial> configurableMaterials = new Dictionary<string, ConfigurableMaterial>
@@ -446,7 +447,7 @@ namespace RoadVisualTweaks.Systems
 
                     if (
                         (configurableMaterial.prevOverrideEnable != overrideEnable) ||
-                        (configurableMaterial.prevtextureVariant != textureVariant) ||
+                        (configurableMaterial.prevTextureVariant != textureVariant) ||
                         (configurableMaterial.prevTextureBrightness != textureBrightness) ||
                         (configurableMaterial.prevTextureHue != textureHue) ||
                         (configurableMaterial.prevTextureOpacity != textureOpacity) ||
@@ -455,149 +456,165 @@ namespace RoadVisualTweaks.Systems
                     {
                         Mod.log.Info($"updating material: {name}");
 
-                        configurableMaterial.prevtextureVariant = textureVariant;
-                        configurableMaterial.prevTextureBrightness = textureBrightness;
-                        configurableMaterial.prevTextureHue = textureHue;
-                        configurableMaterial.prevTextureOpacity = textureOpacity;
-                        configurableMaterial.prevTextureSmoothness = textureSmoothness;
-
-                        DefaultTextureImporter defaultTextureImporter = ImporterCache.GetImporter(".png") as DefaultTextureImporter;
-
-                        if (configurableMaterial.generatedColorTexture != null)
-                        {
-                            UnityEngine.Object.Destroy(configurableMaterial.generatedColorTexture);
-                        }
-
-                        if (configurableMaterial.generatedNormalTexture != null)
-                        {
-                            UnityEngine.Object.Destroy(configurableMaterial.generatedNormalTexture);
-                        }
-
-                        TextureImporter.Texture tempColorTexture = null;
-                        Texture2D tempColorTexture2D = null;
-
-                        NativeArray<Color32> rawColorPixels;
-
-                        if (textureVariant == TextureVariantEnum.Vanilla)
-                        {
-                            configurableMaterial.generatedColorTexture = new Texture2D(
-                                configurableMaterial.vanillaColorTexture.width, configurableMaterial.vanillaColorTexture.height);
-                            tempColorTexture2D = ReadUnreadableTexture(configurableMaterial.vanillaColorTexture);
-                            rawColorPixels = tempColorTexture2D.GetPixelData<Color32>(0);
-                        }
-                        else
-                        { // Currently only supports 1 alternative texture
-                          // ----- Load colour texture -----
-
-                            string colourFilePath = Path.Combine(Mod.myModFolder, "textures", "reflavoured_" + name + "_Color.png");
-
-                            // I am using the game's assetpipeline importer to load the colour texture from the png file
-                            // However, to be able to modify the texture, I have to copy it (uncompressed) to a regular Unity Texture2D
-                            ImportSettings importSettings = ImportSettings.GetDefault();
-                            importSettings.compressBC = false;
-                            importSettings.computeMips = false;
-
-                            tempColorTexture = defaultTextureImporter.Import(importSettings, colourFilePath);
-                            rawColorPixels = (tempColorTexture.rawMips[0]).Reinterpret<Color32>(1);
-
-                            configurableMaterial.generatedColorTexture = new Texture2D(tempColorTexture.width, tempColorTexture.height);
-
-                            // ----- Load normal texture -----
-                            string normalFilePath = Path.Combine(Mod.myModFolder, "textures", "reflavoured_" + name + "_Normal.png");
-
-                            ImportSettings importSettings2 = ImportSettings.GetDefault();
-                            importSettings2.normalMap = true;
-                            importSettings2.alphaIsTransparency = false;
-
-                            if (File.Exists(normalFilePath))
-                            {
-                                TextureImporter.Texture temp2 = defaultTextureImporter.Import(importSettings2, normalFilePath);
-
-                                configurableMaterial.generatedNormalTexture = (Texture2D)(temp2.ToUnityTexture());
-                                configurableMaterial.generatedNormalTexture.name = name + "_Normal_custom";
-
-                                temp2.Dispose();
-                            }
-                            else
-                            {
-                                Mod.log.Info($"{normalFilePath} is not found (this is not a warning)");
-                            }
-
-                        }
-
-                        configurableMaterial.generatedColorTexture.name = name + "_BaseColor_custom";
-
-
-                        int imageLen = rawColorPixels.Length;
-
-                        NativeArray<Color32> output = new NativeArray<Color32>(imageLen, Allocator.TempJob);
-
-                        if (name == ConfigurableMaterialNames.BusLane ||
-                            name == ConfigurableMaterialNames.BikeLane150cm ||
-                            name == ConfigurableMaterialNames.BikePathPavementSide0cm ||
-                            name == ConfigurableMaterialNames.BikePathPavementMiddle300cm ||
-                            name == ConfigurableMaterialNames.BikePathPavement800cm)
-                        {
-                            var job = new ImageBrightnessHueJob
-                            {
-                                input = rawColorPixels,
-                                output = output,
-                                brightness = textureBrightness,
-                                hue = textureHue
-                            };
-
-                            JobHandle handle = job.Schedule(imageLen, 64);
-                            handle.Complete();
-                        } else
-                        {
-                            var job = new ImageBrightnessOpacityJob
-                            {
-                                input = rawColorPixels,
-                                output = output,
-                                brightness = textureBrightness,
-                                opacity = textureOpacity
-                            };
-
-                            JobHandle handle = job.Schedule(imageLen, 64);
-                            handle.Complete();
-                        }
-
-                        Color32[] modifiedPixels = output.ToArray();
-
-                        configurableMaterial.generatedColorTexture.SetPixels32(modifiedPixels);
-                        configurableMaterial.generatedColorTexture.Apply(true);
-
-                        output.Dispose();
-
-                        
-                        tempColorTexture?.Dispose();
-
-                        if (tempColorTexture2D != null)
-                        {
-                            UnityEngine.Object.Destroy(tempColorTexture2D);
-                        }
 
                         string normalKey = configurableMaterial.usesWorldSpace ? "_WorldspaceNormalMap" : "_NormalMap";
                         string colorKey = configurableMaterial.usesWorldSpace ? "_WorldspaceAlbedo" : "_BaseColorMap";
-                        
-                        if (textureVariant == TextureVariantEnum.Vanilla || !overrideEnable)
-                        {
-                            configurableMaterial.material.SetTexture(normalKey, configurableMaterial.vanillaNormalTexture); // note that some materials do not have a default normal map
-                        }
-                        else
-                        {
-                            configurableMaterial.material.SetTexture(normalKey, configurableMaterial.generatedNormalTexture); // note that some materials do not have a default normal map
-                        }
 
                         if (!overrideEnable)
                         {
+                            // If not enabled, just use the vanilla textures
+                            configurableMaterial.material.SetTexture(normalKey, configurableMaterial.vanillaNormalTexture); // note that some materials do not have a default normal map
                             configurableMaterial.material.SetTexture(colorKey, configurableMaterial.vanillaColorTexture);
                             configurableMaterial.material.SetFloat("_Smoothness", configurableMaterial.vanillaSmoothness);
-                        } else {
+                        }
+                        else
+                        {
+                            DefaultTextureImporter defaultTextureImporter = ImporterCache.GetImporter(".png") as DefaultTextureImporter;
+
+                            if (!configurableMaterial.cachedTextureStopWatch.IsRunning || configurableMaterial.prevTextureVariant != textureVariant)
+                            {
+                                // Cache is invalid, reload the textures
+
+                                if (configurableMaterial.cachedSourceColorTexture != null)
+                                {
+                                    UnityEngine.Object.Destroy(configurableMaterial.cachedSourceColorTexture);
+                                }
+
+                                if (textureVariant == TextureVariantEnum.Vanilla)
+                                {
+                                    configurableMaterial.cachedSourceColorTexture = ReadUnreadableTexture(configurableMaterial.vanillaColorTexture);
+                                }
+                                else
+                                { // Currently only supports 1 alternative texture
+                                    // ----- Load colour texture -----
+
+                                    string colourFilePath = Path.Combine(Mod.myModFolder, "textures", "reflavoured_" + name + "_Color.png");
+
+                                    // I am using the game's assetpipeline importer to load the colour texture from the png file
+                                    // However, to be able to modify the texture, I have to copy it (uncompressed) to a regular Unity Texture2D
+                                    ImportSettings importSettings = ImportSettings.GetDefault();
+                                    importSettings.compressBC = false;
+                                    importSettings.computeMips = false;
+
+                                    TextureImporter.Texture tempColorTexture = defaultTextureImporter.Import(importSettings, colourFilePath);
+                                    // copy the texture as a UnityEngine.Texture2D
+                                    configurableMaterial.cachedSourceColorTexture = (Texture2D)(tempColorTexture.ToUnityTexture());
+                                    tempColorTexture.Dispose();
+                                }
+                            }
+
+
+                            if(configurableMaterial.prevTextureVariant != textureVariant)
+                            {
+
+                                if (configurableMaterial.generatedNormalTexture != null)
+                                {
+                                    UnityEngine.Object.Destroy(configurableMaterial.generatedNormalTexture);
+                                }
+
+                                if (textureVariant != TextureVariantEnum.Vanilla)
+                                {
+                                    // ----- Load normal texture -----
+                                    string normalFilePath = Path.Combine(Mod.myModFolder, "textures", "reflavoured_" + name + "_Normal.png");
+
+                                    ImportSettings importSettings2 = ImportSettings.GetDefault();
+                                    importSettings2.normalMap = true;
+                                    importSettings2.alphaIsTransparency = false;
+
+                                    if (File.Exists(normalFilePath))
+                                    {
+                                        TextureImporter.Texture temp2 = defaultTextureImporter.Import(importSettings2, normalFilePath);
+
+                                        configurableMaterial.generatedNormalTexture = (Texture2D)(temp2.ToUnityTexture());
+                                        configurableMaterial.generatedNormalTexture.name = name + "_Normal_custom";
+
+                                        temp2.Dispose();
+                                    }
+                                    else
+                                    {
+                                        Mod.log.Info($"{normalFilePath} is not found (this is not a warning)");
+                                    }
+                                }
+                            }
+
+                            NativeArray<Color32> rawColorPixels = configurableMaterial.cachedSourceColorTexture.GetPixelData<Color32>(0);
+                           
+                            // Always destroy the generatedColorTexture, since we will recreate a new one
+                            if (configurableMaterial.generatedColorTexture != null)
+                            {
+                                UnityEngine.Object.Destroy(configurableMaterial.generatedColorTexture);
+                            }
+
+                            configurableMaterial.generatedColorTexture = new Texture2D(configurableMaterial.cachedSourceColorTexture.width, configurableMaterial.cachedSourceColorTexture.height);
+                            configurableMaterial.generatedColorTexture.name = name + "_BaseColor_custom";
+
+      
+                            int imageLen = rawColorPixels.Length;
+
+                            NativeArray<Color32> output = new NativeArray<Color32>(imageLen, Allocator.TempJob);
+
+                            if (name == ConfigurableMaterialNames.BusLane ||
+                                name == ConfigurableMaterialNames.BikeLane150cm ||
+                                name == ConfigurableMaterialNames.BikePathPavementSide0cm ||
+                                name == ConfigurableMaterialNames.BikePathPavementMiddle300cm ||
+                                name == ConfigurableMaterialNames.BikePathPavement800cm)
+                            {
+                                var job = new ImageBrightnessHueJob
+                                {
+                                    input = rawColorPixels,
+                                    output = output,
+                                    brightness = textureBrightness,
+                                    hue = textureHue
+                                };
+
+                                JobHandle handle = job.Schedule(imageLen, 64);
+                                handle.Complete();
+                            }
+                            else
+                            {
+                                var job = new ImageBrightnessOpacityJob
+                                {
+                                    input = rawColorPixels,
+                                    output = output,
+                                    brightness = textureBrightness,
+                                    opacity = textureOpacity
+                                };
+
+                                JobHandle handle = job.Schedule(imageLen, 64);
+                                handle.Complete();
+                            }
+
+                            Color32[] modifiedPixels = output.ToArray();
+
+                            configurableMaterial.generatedColorTexture.SetPixels32(modifiedPixels);
+                            configurableMaterial.generatedColorTexture.Apply(true);
+
+                            output.Dispose();
+
+                            if (textureVariant == TextureVariantEnum.Vanilla)
+                            {
+                                configurableMaterial.material.SetTexture(normalKey, configurableMaterial.vanillaNormalTexture); // note that some materials do not have a default normal map
+                            }
+                            else
+                            {
+                                configurableMaterial.material.SetTexture(normalKey, configurableMaterial.generatedNormalTexture); // note that some materials do not have a default normal map
+                            }
+  
                             configurableMaterial.material.SetTexture(colorKey, configurableMaterial.generatedColorTexture);
                             configurableMaterial.material.SetFloat("_Smoothness", textureSmoothness);
+                            
+                            // start stopwatch for the cache
+                            configurableMaterial.cachedTextureStopWatch.Restart();
                         }
-                    }
+
+
+                    configurableMaterial.prevOverrideEnable = overrideEnable;
+                    configurableMaterial.prevTextureVariant = textureVariant;
+                    configurableMaterial.prevTextureBrightness = textureBrightness;
+                    configurableMaterial.prevTextureHue = textureHue;
+                    configurableMaterial.prevTextureOpacity = textureOpacity;
+                    configurableMaterial.prevTextureSmoothness = textureSmoothness;
+                }
                 }
             }
 
@@ -613,6 +630,15 @@ namespace RoadVisualTweaks.Systems
                 {
                     // Only update if changed
                     UpdateMaterialsAndTextures(false);
+                }
+            }
+
+            // Free up cached texture resources after a short time
+            foreach (KeyValuePair<string, ConfigurableMaterial> pair in configurableMaterials)
+            {
+                if(pair.Value.cachedTextureStopWatch.ElapsedMilliseconds > 10000)
+                {
+                    pair.Value.cachedTextureStopWatch.Stop();
                 }
             }
         }
